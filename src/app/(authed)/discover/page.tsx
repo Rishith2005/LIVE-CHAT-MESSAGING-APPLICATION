@@ -41,13 +41,14 @@ function DiscoverConvexClerk() {
   const { isAuthenticated } = useConvexAuth();
   if (!isLoaded) return null;
   if (!user) return null;
-  return <DiscoverConvexInner viewerId={isAuthenticated ? undefined : user.id} />;
+  if (!isAuthenticated) return null;
+  return <DiscoverConvexInner />;
 }
 
-function DiscoverConvexInner(props: { viewerId?: string }) {
+function DiscoverConvexInner(props?: { viewerId?: string }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const { viewerId } = props;
+  const viewerId = props?.viewerId;
 
   const results = useQuery(api.users.search, {
     query,
@@ -259,4 +260,3 @@ function DiscoverDemo() {
     </div>
   );
 }
-

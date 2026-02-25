@@ -32,14 +32,27 @@ function DashboardConvexClerk() {
   const { isAuthenticated } = useConvexAuth();
   if (!isLoaded) return null;
   if (!user) return null;
-  return (
-    <DashboardConvexInner viewerId={isAuthenticated ? undefined : user.id} />
-  );
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-full">
+        <div className="w-full border-r border-border bg-card/50 backdrop-blur md:w-[360px]">
+          <div className="border-b border-border p-4">
+            <p className="text-sm font-semibold">Conversations</p>
+          </div>
+          <ScrollArea className="h-[calc(100dvh-64px-144px)]">
+            <ConversationSkeleton />
+          </ScrollArea>
+        </div>
+      </div>
+    );
+  }
+
+  return <DashboardConvexInner />;
 }
 
-function DashboardConvexInner(props: { viewerId?: string }) {
+function DashboardConvexInner(props?: { viewerId?: string }) {
   const [query, setQuery] = useState("");
-  const { viewerId } = props;
+  const viewerId = props?.viewerId;
   const conversations = useQuery(api.conversations.listForViewer, { viewerId });
 
   type ConversationRow = {
@@ -241,4 +254,3 @@ function DashboardDemo() {
     </div>
   );
 }
-

@@ -65,12 +65,8 @@ function ChatConvexClerk() {
   const { isAuthenticated } = useConvexAuth();
   if (!isLoaded) return null;
   if (!user) return null;
-  return (
-    <ChatConvexInner
-      viewerUserId={user.id}
-      viewerId={isAuthenticated ? undefined : user.id}
-    />
-  );
+  if (!isAuthenticated) return null;
+  return <ChatConvexInner viewerUserId={user.id} />;
 }
 
 function ChatConvexInner({
@@ -871,4 +867,3 @@ function ChatDemo() {
     </div>
   );
 }
-

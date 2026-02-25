@@ -1,4 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LIVE-CHAT-MESSAGING-APPLICATION
+
+Realtime chat app built with Next.js, Clerk authentication, and Convex backend.
+
+## Setup
+
+Create `next-app/.env.local` with:
+
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CONVEX_URL`
+
+For Convex + Clerk JWT verification, set `CLERK_JWT_ISSUER_DOMAIN` on your Convex deployment.
+
+## Getting Started
+
+From `next-app/`:
+
+```bash
+npm install
+npx convex dev
+npm run dev
+```
+
+Open the dev server URL shown in the terminal.
+
+---
+
+This project was bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 

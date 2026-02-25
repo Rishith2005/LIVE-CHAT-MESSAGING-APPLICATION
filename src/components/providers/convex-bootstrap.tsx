@@ -8,7 +8,7 @@ import { demoCurrentUser } from "@/lib/mock";
 import { useUser } from "@clerk/nextjs";
 
 export function ConvexBootstrap() {
-  if (isClerkConfigured()) return <ConvexBootstrapClerkAware />;
+  if (isClerkConfigured()) return <ConvexBootstrapClerk />;
   return <ConvexBootstrapDemo />;
 }
 
@@ -32,34 +32,6 @@ function ConvexBootstrapDemo() {
   return null;
 }
 
-function ConvexBootstrapClerkAware() {
-  const { isAuthenticated } = useConvexAuth();
-  if (isAuthenticated) return <ConvexBootstrapClerk />;
-  return <ConvexBootstrapClerkFallback />;
-}
-
-function ConvexBootstrapClerkFallback() {
-  const didRun = useRef(false);
-  const { user } = useUser();
-  const seedDemo = useMutation(api.seed.seedDemo);
-  const upsertViewer = useMutation(api.users.upsertViewer);
-
-  useEffect(() => {
-    if (didRun.current) return;
-    didRun.current = true;
-    void seedDemo({});
-    if (!user) return;
-    void upsertViewer({
-      viewerId: user.id,
-      name: user.fullName || user.username || user.primaryEmailAddress?.emailAddress,
-      imageUrl: user.imageUrl,
-      status: "online",
-    });
-  }, [seedDemo, upsertViewer, user]);
-
-  return null;
-}
-
 function ConvexBootstrapClerk() {
   const didRun = useRef(false);
   const { user } = useUser();
@@ -75,9 +47,10 @@ function ConvexBootstrapClerk() {
       name: user.fullName || user.username || user.primaryEmailAddress?.emailAddress,
       imageUrl: user.imageUrl,
       status: "online",
+    }).catch(() => {
+      didRun.current = false;
     });
   }, [isAuthenticated, upsertViewer, user]);
 
   return null;
 }
-
