@@ -33,6 +33,7 @@ import { formatListTimestamp, formatMessageTime } from "@/lib/format";
 import { ArrowLeft, Info, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
+import { derivePresenceStatus, useNow } from "@/lib/presence";
 
 type UiStatus = "sent" | "sending" | "failed";
 type UiMessage = Message & { uiStatus?: UiStatus };
@@ -86,6 +87,8 @@ function ChatConvexInner({
   const [isAtBottom, setIsAtBottom] = useState(true);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const now = useNow(10_000);
   const typingStopTimer = useRef<number | null>(null);
 
   const [text, setText] = useState("");
@@ -129,6 +132,7 @@ function ChatConvexInner({
       email: "",
       avatarUrl: conversation.peer.imageUrl,
       status: conversation.peer.status ?? "offline",
+      updatedAt: conversation.peer.updatedAt,
     };
   }, [conversation]);
 
@@ -143,6 +147,7 @@ function ChatConvexInner({
       name: string;
       imageUrl?: string;
       status?: "online" | "away" | "offline";
+      updatedAt: number;
     };
   };
 
@@ -195,10 +200,27 @@ function ChatConvexInner({
     return () => viewport.removeEventListener("scroll", onScroll);
   }, [conversationId, loadingMessages]);
 
+  useEffect(() => {
+    didInitialScroll.current = false;
+    lastRenderedMessageId.current = null;
+    lastMarkedReadMessageId.current = null;
+    requestAnimationFrame(() => {
+      setNewMessagesPill(false);
+      setIsAtBottom(true);
+    });
+  }, [conversationId]);
+
   const scrollToBottom = useCallback(() => {
     const viewport = getViewportEl(rootRef.current);
     if (!viewport) return;
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+    setNewMessagesPill(false);
+  }, []);
+
+  const scrollToBottomImmediate = useCallback(() => {
+    const viewport = getViewportEl(rootRef.current);
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight });
     setNewMessagesPill(false);
   }, []);
 
@@ -211,7 +233,10 @@ function ChatConvexInner({
     if (!didInitialScroll.current) {
       didInitialScroll.current = true;
       lastRenderedMessageId.current = lastMessageId;
-      requestAnimationFrame(scrollToBottom);
+      requestAnimationFrame(() => {
+        scrollToBottomImmediate();
+        requestAnimationFrame(scrollToBottomImmediate);
+      });
       return;
     }
 
@@ -220,7 +245,7 @@ function ChatConvexInner({
 
     if (isAtBottom) requestAnimationFrame(scrollToBottom);
     else requestAnimationFrame(() => setNewMessagesPill(true));
-  }, [isAtBottom, lastMessageId, loadingMessages, scrollToBottom]);
+  }, [isAtBottom, lastMessageId, loadingMessages, scrollToBottom, scrollToBottomImmediate]);
 
   useEffect(() => {
     if (loadingMessages) return;
@@ -361,26 +386,33 @@ function ChatConvexInner({
 
   return (
     <div className="flex h-full">
-      <div className="hidden w-[360px] border-r border-border bg-card/50 backdrop-blur md:block">
+      <div className="hidden w-[360px] min-h-0 border-r border-border bg-card/50 backdrop-blur md:flex md:flex-col">
         <div className="border-b border-border p-4">
           <p className="text-sm font-semibold">Conversations</p>
           <div className="mt-3">
             <Input placeholder="Search…" aria-label="Search conversations" />
           </div>
         </div>
-        <ScrollArea className="h-[calc(100dvh-64px-144px)]">
+        <ScrollArea className="min-h-0 flex-1">
           {loadingList ? (
             <ConversationSkeleton />
           ) : (
             <div className="p-2">
               {((list ?? []) as unknown as ConversationListRow[]).map((c) => {
+                const effectivePeerStatus = c.peer
+                  ? derivePresenceStatus({
+                      status: c.peer.status,
+                      updatedAt: c.peer.updatedAt,
+                      now,
+                    })
+                  : undefined;
                 const peerUser = c.peer
                   ? {
                       id: c.peer.userId,
                       name: c.peer.name,
                       email: "",
                       avatarUrl: c.peer.imageUrl,
-                      status: c.peer.status ?? "offline",
+                      status: effectivePeerStatus ?? "offline",
                     }
                   : undefined;
                 return (
@@ -417,11 +449,30 @@ function ChatConvexInner({
             <div>
               <p className="text-sm font-semibold">{conversation?.title ?? "Conversation"}</p>
               <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                {peer ? <StatusIndicator status={peer.status} size="sm" /> : null}
+                {peer ? (
+                  <StatusIndicator
+                    status={
+                      derivePresenceStatus({
+                        status: peer.status,
+                        updatedAt: peer.updatedAt,
+                        now,
+                      })
+                    }
+                    size="sm"
+                  />
+                ) : null}
                 <span>
-                  {peer?.status === "online"
+                  {derivePresenceStatus({
+                    status: peer?.status,
+                    updatedAt: peer?.updatedAt,
+                    now,
+                  }) === "online"
                     ? "Active now"
-                    : peer?.status === "away"
+                    : derivePresenceStatus({
+                          status: peer?.status,
+                          updatedAt: peer?.updatedAt,
+                          now,
+                        }) === "away"
                       ? "Away"
                       : "Offline"}
                 </span>
@@ -490,10 +541,10 @@ function ChatConvexInner({
             </div>
           </ScrollArea>
 
-          {newMessagesPill ? (
+          {!isAtBottom ? (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
               <Button variant="secondary" className="rounded-full shadow-md" onClick={scrollToBottom}>
-                ↓ New messages
+                {newMessagesPill ? "↓ New messages" : "↓ Latest"}
               </Button>
             </div>
           ) : null}
@@ -776,7 +827,7 @@ function ChatDemo() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex h-16 items-center justify-between border-b border-border bg-card/60 px-4 backdrop-blur">
           <div className="flex items-center gap-3">
             <Button asChild variant="ghost" size="icon" className="rounded-full md:hidden">
@@ -802,7 +853,7 @@ function ChatDemo() {
           </div>
         </div>
 
-        <div className="relative min-w-0 flex-1" ref={rootRef}>
+        <div className="relative min-h-0 min-w-0 flex-1" ref={rootRef}>
           <ScrollArea className="h-full p-4">
             <div className="mx-auto max-w-3xl space-y-4">
               {loadingMessages ? (

@@ -29,7 +29,8 @@ export function ConversationItem(props: {
       href={`/chat/${conversationId}`}
       className={cn(
         "flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-accent/50",
-        active ? "bg-accent" : ""
+        active ? "bg-accent" : "",
+        unreadCount > 0 && !active ? "bg-accent/30" : ""
       )}
     >
       <div className="relative">
@@ -53,9 +54,13 @@ export function ConversationItem(props: {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-sm font-semibold">{title}</p>
-          <span className="shrink-0 text-xs text-muted-foreground">{timestamp}</span>
+          <span className={cn("shrink-0 text-xs", unreadCount > 0 ? "text-foreground" : "text-muted-foreground")}>
+            {timestamp}
+          </span>
         </div>
-        <p className="truncate text-sm text-muted-foreground">{lastMessage}</p>
+        <p className={cn("truncate text-sm", unreadCount > 0 ? "text-foreground" : "text-muted-foreground")}>
+          {lastMessage}
+        </p>
       </div>
     </Link>
   );

@@ -4,6 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/ui/utils";
 import { LayoutGrid, MessageSquare, UserPlus } from "lucide-react";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Badge } from "@/components/ui/badge";
+import { isClerkConfigured, isConvexConfigured } from "@/lib/env";
+import { demoCurrentUser } from "@/lib/mock";
 
 const items = [
   { href: "/dashboard", label: "Chats", icon: LayoutGrid },
@@ -12,6 +17,18 @@ const items = [
 
 export function SideNav() {
   const pathname = usePathname();
+  const { isAuthenticated } = useConvexAuth();
+
+  const viewerId = isClerkConfigured() ? undefined : demoCurrentUser.id;
+  const conversations = useQuery(
+    api.conversations.listForViewer,
+    isConvexConfigured() && (!isClerkConfigured() || isAuthenticated) ? { viewerId } : "skip"
+  );
+
+  const totalUnread = ((conversations ?? []) as unknown as Array<{ unreadCount?: number }>).reduce(
+    (sum, c) => sum + (c.unreadCount ?? 0),
+    0
+  );
 
   return (
     <aside className="hidden h-full w-64 shrink-0 border-r border-border bg-[--color-sidebar]/70 backdrop-blur md:flex md:flex-col">
@@ -40,7 +57,12 @@ export function SideNav() {
               )}
             >
               <Icon className="h-4 w-4" />
-              {it.label}
+              <span className="min-w-0 flex-1 truncate">{it.label}</span>
+              {it.href === "/dashboard" && totalUnread > 0 ? (
+                <Badge className="min-w-5 justify-center rounded-full px-1.5">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </Badge>
+              ) : null}
             </Link>
           );
         })}
@@ -48,4 +70,3 @@ export function SideNav() {
     </aside>
   );
 }
-

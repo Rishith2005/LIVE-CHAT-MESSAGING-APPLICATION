@@ -16,6 +16,7 @@ import { isClerkConfigured, isConvexConfigured } from "@/lib/env";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { derivePresenceStatus, useNow } from "@/lib/presence";
 
 type DiscoverUser = {
   id: string;
@@ -49,6 +50,7 @@ function DiscoverConvexInner(props?: { viewerId?: string }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const viewerId = props?.viewerId;
+  const now = useNow(10_000);
 
   const results = useQuery(api.users.search, {
     query,
@@ -62,11 +64,12 @@ function DiscoverConvexInner(props?: { viewerId?: string }) {
     name?: string;
     imageUrl?: string;
     status?: "online" | "away" | "offline";
+    updatedAt: number;
   };
 
   const mapped: DiscoverUser[] = useMemo(() => {
     return ((results ?? []) as unknown as SearchUserRow[]).map((u) => {
-      const status = u.status === "online" || u.status === "away" ? u.status : "offline";
+      const status = derivePresenceStatus({ status: u.status, updatedAt: u.updatedAt, now });
       return {
         id: String(u.userId),
         name: String(u.name ?? ""),
@@ -75,7 +78,7 @@ function DiscoverConvexInner(props?: { viewerId?: string }) {
         status,
       };
     });
-  }, [results]);
+  }, [now, results]);
 
   return (
     <div className="h-full">

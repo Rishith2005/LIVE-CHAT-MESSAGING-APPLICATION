@@ -16,6 +16,7 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { demoCurrentUser } from "@/lib/mock";
 import { useUser } from "@clerk/nextjs";
+import { derivePresenceStatus, useNow } from "@/lib/presence";
 
 export default function DashboardPage() {
   if (isConvexConfigured()) return <DashboardConvex />;
@@ -54,6 +55,7 @@ function DashboardConvexInner(props?: { viewerId?: string }) {
   const [query, setQuery] = useState("");
   const viewerId = props?.viewerId;
   const conversations = useQuery(api.conversations.listForViewer, { viewerId });
+  const now = useNow(10_000);
 
   type ConversationRow = {
     conversationId: string;
@@ -66,6 +68,7 @@ function DashboardConvexInner(props?: { viewerId?: string }) {
       name: string;
       imageUrl?: string;
       status?: "online" | "away" | "offline";
+      updatedAt: number;
     };
   };
 
@@ -119,13 +122,20 @@ function DashboardConvexInner(props?: { viewerId?: string }) {
           ) : (
             <div className="p-2">
               {filtered.map((c) => {
+                const effectivePeerStatus = c.peer
+                  ? derivePresenceStatus({
+                      status: c.peer.status,
+                      updatedAt: c.peer.updatedAt,
+                      now,
+                    })
+                  : "offline";
                 const peer = c.peer
                   ? {
                       id: c.peer.userId,
                       name: c.peer.name,
                       email: "",
                       avatarUrl: c.peer.imageUrl,
-                      status: c.peer.status ?? "offline",
+                      status: effectivePeerStatus,
                     }
                   : undefined;
                 return (
