@@ -7,7 +7,7 @@ export function derivePresenceStatus(params: {
   updatedAt?: number | null;
   now: number;
 }) {
-  const staleMs = 90_000;
+  const staleMs = 45_000;
   const { status, updatedAt, now } = params;
   if (!updatedAt) return "offline";
   if (now - updatedAt > staleMs) return "offline";
@@ -23,4 +23,3 @@ export function useNow(intervalMs = 15_000) {
   }, [intervalMs]);
   return now;
 }
-

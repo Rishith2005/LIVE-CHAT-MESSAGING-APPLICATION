@@ -9,9 +9,9 @@ export function StatusIndicator(props: {
   const { status, size = "md", ping } = props;
   const sizes = { sm: "h-2 w-2", md: "h-2.5 w-2.5" };
   const colors: Record<UserStatus, string> = {
-    online: "bg-[--color-success]",
+    online: "bg-[--success]",
     away: "bg-yellow-500",
-    offline: "bg-muted-foreground",
+    offline: "bg-[--muted-foreground]",
   };
   return (
     <span className="relative inline-flex">
@@ -22,4 +22,3 @@ export function StatusIndicator(props: {
     </span>
   );
 }
-

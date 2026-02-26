@@ -7,7 +7,7 @@ function withEffectiveStatus<T extends { status?: "online" | "away" | "offline";
   user: T,
   now: number
 ) {
-  const staleMs = 90_000;
+  const staleMs = 45_000;
   if (now - user.updatedAt > staleMs) {
     return { ...user, status: "offline" as const };
   }

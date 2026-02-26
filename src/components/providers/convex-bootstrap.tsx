@@ -54,7 +54,7 @@ function ConvexBootstrapClerk() {
 
     const heartbeat = window.setInterval(() => {
       void upsert("online");
-    }, 25_000);
+    }, 15_000);
 
     const onVisibility = () => {
       void upsert(document.visibilityState === "hidden" ? "away" : "online");
