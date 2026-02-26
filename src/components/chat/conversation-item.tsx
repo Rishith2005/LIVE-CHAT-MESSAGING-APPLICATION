@@ -37,6 +37,13 @@ export function ConversationItem(props: {
           <AvatarImage src={peer?.avatarUrl} alt={title} />
           <AvatarFallback className="bg-primary/10 text-primary">{initials}</AvatarFallback>
         </Avatar>
+        {unreadCount > 0 ? (
+          <span className="absolute -right-1 -top-1">
+            <Badge className="min-w-5 justify-center rounded-full px-1.5">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </Badge>
+          </span>
+        ) : null}
         {peer ? (
           <span className="absolute bottom-0 right-0 rounded-full bg-background p-0.5">
             <StatusIndicator status={peer.status} size="sm" />
@@ -50,10 +57,6 @@ export function ConversationItem(props: {
         </div>
         <p className="truncate text-sm text-muted-foreground">{lastMessage}</p>
       </div>
-      {unreadCount > 0 ? (
-        <Badge className="min-w-5 justify-center rounded-full px-1.5">{unreadCount > 99 ? "99+" : unreadCount}</Badge>
-      ) : null}
     </Link>
   );
 }
-

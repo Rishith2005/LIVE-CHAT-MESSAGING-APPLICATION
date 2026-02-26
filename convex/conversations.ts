@@ -3,17 +3,30 @@ import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { assertConversationMember, getViewerId } from "./lib/auth";
 
-async function getUserByUserId(ctx: QueryCtx | MutationCtx, userId: string) {
+function withEffectiveStatus<T extends { status?: "online" | "away" | "offline"; updatedAt: number }>(
+  user: T,
+  now: number
+) {
+  const staleMs = 90_000;
+  if (now - user.updatedAt > staleMs) {
+    return { ...user, status: "offline" as const };
+  }
+  return { ...user, status: user.status ?? ("online" as const) };
+}
+
+async function getUserByUserId(ctx: QueryCtx | MutationCtx, userId: string, now: number) {
   return await ctx.db
     .query("users")
     .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .unique();
+    .unique()
+    .then((u) => (u ? withEffectiveStatus(u, now) : null));
 }
 
 export const listForViewer = query({
   args: { viewerId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewerId = await getViewerId(ctx, args.viewerId);
+    const now = Date.now();
 
     const memberships = await ctx.db
       .query("conversationMembers")
@@ -43,7 +56,7 @@ export const listForViewer = query({
 
       const memberIds = members.map((mm) => mm.userId);
       const peerId = memberIds.find((id) => id !== viewerId);
-      const peer = peerId ? await getUserByUserId(ctx, peerId) : null;
+      const peer = peerId ? await getUserByUserId(ctx, peerId, now) : null;
 
       const title = c.type === "room" ? c.title ?? "Room" : peer?.name ?? "Direct message";
       const preview =
@@ -53,6 +66,15 @@ export const listForViewer = query({
             ? "Message deleted"
             : (lastMessage.body ?? "");
 
+      const lastReadAt = m.lastReadAt ?? m.joinedAt;
+      const unread = await ctx.db
+        .query("messages")
+        .withIndex("by_conversationId_createdAt", (q) =>
+          q.eq("conversationId", c._id).gt("createdAt", lastReadAt)
+        )
+        .take(200);
+      const unreadCount = unread.filter((msg) => !msg.deletedAt && msg.senderId !== viewerId).length;
+
       rows.push({
         conversationId: c._id,
         type: c.type,
@@ -60,7 +82,7 @@ export const listForViewer = query({
         peer,
         lastMessage: preview,
         lastMessageAt,
-        unreadCount: 0,
+        unreadCount,
         memberIds,
       });
     }
@@ -74,6 +96,7 @@ export const get = query({
   args: { conversationId: v.id("conversations"), viewerId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewerId = await getViewerId(ctx, args.viewerId);
+    const now = Date.now();
     await assertConversationMember(ctx, args.conversationId, viewerId);
     const c = await ctx.db.get(args.conversationId);
     if (!c) return null;
@@ -88,15 +111,34 @@ export const get = query({
     const memberIds = memberships.map((m) => m.userId);
     const members = [];
     for (const id of memberIds) {
-      const u = await getUserByUserId(ctx, id);
+      const u = await getUserByUserId(ctx, id, now);
       if (u) members.push(u);
     }
 
     const peerId = memberIds.find((id) => id !== viewerId);
-    const peer = peerId ? await getUserByUserId(ctx, peerId) : null;
+    const peer = peerId ? await getUserByUserId(ctx, peerId, now) : null;
     const title = c.type === "room" ? c.title ?? "Room" : peer?.name ?? "Direct message";
 
     return { ...c, title, memberIds, members, peer };
+  },
+});
+
+export const markRead = mutation({
+  args: { conversationId: v.id("conversations"), viewerId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const viewerId = await getViewerId(ctx, args.viewerId);
+    await assertConversationMember(ctx, args.conversationId, viewerId);
+    const membership = await ctx.db
+      .query("conversationMembers")
+      .withIndex("by_userId", (q) =>
+        q.eq("userId", viewerId).eq("conversationId", args.conversationId)
+      )
+      .unique();
+
+    if (!membership) throw new Error("Not a member");
+    const now = Date.now();
+    await ctx.db.patch(membership._id, { lastReadAt: now });
+    return { lastReadAt: now };
   },
 });
 
@@ -139,11 +181,13 @@ export const createDm = mutation({
       conversationId,
       userId: viewerId,
       joinedAt: now,
+      lastReadAt: now,
     });
     await ctx.db.insert("conversationMembers", {
       conversationId,
       userId: args.otherUserId,
       joinedAt: now,
+      lastReadAt: now,
     });
 
     return { conversationId, created: true };
@@ -171,10 +215,10 @@ export const createRoom = mutation({
         conversationId,
         userId,
         joinedAt: now,
+        lastReadAt: now,
       });
     }
 
     return { conversationId };
   },
 });
-

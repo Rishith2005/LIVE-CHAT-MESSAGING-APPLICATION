@@ -47,6 +47,15 @@ export const send = mutation({
     });
 
     await ctx.db.patch(args.conversationId, { lastMessageAt: now });
+
+    const membership = await ctx.db
+      .query("conversationMembers")
+      .withIndex("by_userId", (q) =>
+        q.eq("userId", viewerId).eq("conversationId", args.conversationId)
+      )
+      .unique();
+    if (membership) await ctx.db.patch(membership._id, { lastReadAt: now });
+
     return { messageId, createdAt: now };
   },
 });
@@ -95,4 +104,3 @@ export const toggleReaction = mutation({
     return { ok: true };
   },
 });
-

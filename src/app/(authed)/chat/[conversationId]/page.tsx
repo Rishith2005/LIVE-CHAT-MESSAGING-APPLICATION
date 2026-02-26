@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -115,6 +115,11 @@ function ChatConvexInner({
   const deleteMutation = useMutation(api.messages.remove);
   const toggleReactionMutation = useMutation(api.messages.toggleReaction);
   const setTypingMutation = useMutation(api.typing.set);
+  const markReadMutation = useMutation(api.conversations.markRead);
+
+  const lastRenderedMessageId = useRef<string | null>(null);
+  const didInitialScroll = useRef(false);
+  const lastMarkedReadMessageId = useRef<string | null>(null);
 
   const peer = useMemo(() => {
     if (!conversation?.peer) return null;
@@ -190,12 +195,43 @@ function ChatConvexInner({
     return () => viewport.removeEventListener("scroll", onScroll);
   }, [conversationId, loadingMessages]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     const viewport = getViewportEl(rootRef.current);
     if (!viewport) return;
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
     setNewMessagesPill(false);
-  };
+  }, []);
+
+  const lastMessageId = uiMessages.length ? uiMessages[uiMessages.length - 1]?.id : null;
+
+  useEffect(() => {
+    if (loadingMessages) return;
+    if (!lastMessageId) return;
+
+    if (!didInitialScroll.current) {
+      didInitialScroll.current = true;
+      lastRenderedMessageId.current = lastMessageId;
+      requestAnimationFrame(scrollToBottom);
+      return;
+    }
+
+    if (lastRenderedMessageId.current === lastMessageId) return;
+    lastRenderedMessageId.current = lastMessageId;
+
+    if (isAtBottom) requestAnimationFrame(scrollToBottom);
+    else requestAnimationFrame(() => setNewMessagesPill(true));
+  }, [isAtBottom, lastMessageId, loadingMessages, scrollToBottom]);
+
+  useEffect(() => {
+    if (loadingMessages) return;
+    if (!isAtBottom) return;
+    if (!lastMessageId) return;
+    if (lastMarkedReadMessageId.current === lastMessageId) return;
+    lastMarkedReadMessageId.current = lastMessageId;
+    void markReadMutation({ conversationId, viewerId }).catch(() => {
+      lastMarkedReadMessageId.current = null;
+    });
+  }, [conversationId, isAtBottom, lastMessageId, loadingMessages, markReadMutation, viewerId]);
 
   const startTypingPulse = () => {
     void setTypingMutation({
@@ -457,7 +493,7 @@ function ChatConvexInner({
           {newMessagesPill ? (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
               <Button variant="secondary" className="rounded-full shadow-md" onClick={scrollToBottom}>
-                New messages
+                ↓ New messages
               </Button>
             </div>
           ) : null}

@@ -29,6 +29,7 @@ export default defineSchema({
     conversationId: v.id("conversations"),
     userId: v.string(),
     joinedAt: v.number(),
+    lastReadAt: v.optional(v.number()),
   })
     .index("by_userId", ["userId", "conversationId"])
     .index("by_conversationId", ["conversationId", "userId"]),
@@ -58,4 +59,3 @@ export default defineSchema({
     .index("by_conversationId", ["conversationId", "updatedAt"])
     .index("by_conversationId_userId", ["conversationId", "userId"]),
 });
-

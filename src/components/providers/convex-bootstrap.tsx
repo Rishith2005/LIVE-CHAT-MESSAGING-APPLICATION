@@ -33,23 +33,39 @@ function ConvexBootstrapDemo() {
 }
 
 function ConvexBootstrapClerk() {
-  const didRun = useRef(false);
   const { user } = useUser();
   const { isAuthenticated } = useConvexAuth();
   const upsertViewer = useMutation(api.users.upsertViewer);
 
   useEffect(() => {
-    if (didRun.current) return;
     if (!user) return;
     if (!isAuthenticated) return;
-    didRun.current = true;
-    void upsertViewer({
-      name: user.fullName || user.username || user.primaryEmailAddress?.emailAddress,
-      imageUrl: user.imageUrl,
-      status: "online",
-    }).catch(() => {
-      didRun.current = false;
-    });
+    const upsert = (status: "online" | "away") => {
+      return upsertViewer({
+        name: user.fullName || user.username || user.primaryEmailAddress?.emailAddress,
+        imageUrl: user.imageUrl,
+        status,
+      }).catch(() => {
+        return;
+      });
+    };
+
+    void upsert("online");
+
+    const heartbeat = window.setInterval(() => {
+      void upsert("online");
+    }, 25_000);
+
+    const onVisibility = () => {
+      void upsert(document.visibilityState === "hidden" ? "away" : "online");
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", onVisibility);
+      void upsert("away");
+    };
   }, [isAuthenticated, upsertViewer, user]);
 
   return null;
